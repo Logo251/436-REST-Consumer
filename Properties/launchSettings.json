@@ -1,0 +1,8 @@
+{
+  "profiles": {
+    "Program 2 REST": {
+      "commandName": "Project",
+      "commandLineArgs": "seattle"
+    }
+  }
+}
