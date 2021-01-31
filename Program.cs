@@ -1,6 +1,8 @@
 ﻿using System;
 using System.Net.Http;
 using Newtonsoft.Json;
+using System.Linq;
+using System.Threading;
 
 
 namespace Program_2_REST
@@ -56,7 +58,20 @@ namespace Program_2_REST
          {
             //Report the uvReport component of the output.
             Console.WriteLine("UV index is " + uvReport.result.uv + " with a max of " + uvReport.result.uv_max + " today.");
-            Console.WriteLine();
+
+            //Using https://www.epa.gov/sunsafety/uv-index-scale-0 for what the index means.
+            if (uvReport.result.uv < 3)
+            {
+               Console.WriteLine("You don't need any protective gear for UV, have a nice day!");
+            }
+            else if(uvReport.result.uv < 8)
+            {
+               Console.WriteLine("You should wear sunblock and a hat.");
+            }
+            else if(uvReport.result.uv >= 8)
+            {
+               Console.WriteLine("You should wear a sunblock and hat as well as stay in shade.");
+            }
          }
          //If we did not, report.
          else
@@ -74,6 +89,7 @@ namespace Program_2_REST
 
       static private JsonResponse GetFromAPI(string baseURL, string extensionURL, string additionalHeadersBearer, string additionalHeaderAuth)
       {
+         int[] retryCodes = { 408, 425, 429, 500, 503, 504 }; //Cleaner and easier to adjust way to manage codes we should retry on.
          var client = new HttpClient();
          JsonResponse returnObject = new JsonResponse();
 
@@ -84,15 +100,24 @@ namespace Program_2_REST
          }
          HttpResponseMessage response = client.GetAsync(extensionURL).Result;
 
-         //Handles when the source is not found.
          try { response.EnsureSuccessStatusCode(); }
          catch(Exception e)
          {
-            if((int)response.StatusCode == 404)
+            //Retry if we have a retry code.
+            if(retryCodes.Contains((int)response.StatusCode))
             {
-               returnObject.statusCode = (int)response.StatusCode;
-               return returnObject;
+               int retryCount = 1;
+               int waitSeconds = 1;
+               while(retryCount <= 5 && !retryCodes.Contains((int)response.StatusCode)) //Five is chosen because exponentially it ends at 55 seconds, and the target is 1 min.
+               {
+                  Thread.Sleep(waitSeconds * 1000);
+                  retryCount++;
+                  waitSeconds = retryCount ^ 2;
+                  response = client.GetAsync(extensionURL).Result;
+               }
             }
+            returnObject.statusCode = (int)response.StatusCode;
+            return returnObject;
          }
          string result = response.Content.ReadAsStringAsync().Result;
          returnObject = JsonConvert.DeserializeObject<JsonResponse>(result);
@@ -121,7 +146,7 @@ public class JsonResponse
 
    public class Result
    {
-      public int uv { get; set; }
+      public float uv { get; set; }
       public DateTime uv_time { get; set; }
       public float uv_max { get; set; }
       public DateTime uv_max_time { get; set; }
