@@ -17,9 +17,14 @@ namespace Program_2_REST
          JsonResponse uvReport = new JsonResponse();
 
          //Get city from user.
-         if (args.Length > 0)
+         //This handles cities with a multi-word name, like Los Angeles.
+         for (int i = 0; i < args.Length; i++)
          {
-            city = args[0];
+            city += args[i];
+            if(i < args.Length - 1)
+            {
+               city += ' ';
+            }
          }
 
          openWeatherReport = GetFromAPI("http://api.openweathermap.org/data/2.5/", "weather?q=" + city + "&appid=db5a189c9a489caf9967a896deffc4b3", null, null);
@@ -36,8 +41,8 @@ namespace Program_2_REST
             //Report the openWeather component of the output.
             Console.WriteLine("Information about " + city + ":");
             Console.WriteLine("Current weather is " + openWeatherReport.weather[0].description + ".");
-            Console.WriteLine("Current temperature is " + (int)((((openWeatherReport.main.temp) - 273.15) * 1.8) + 32) + " F."); //Converts from Kelvin to Fahrenheit. 
-            Console.WriteLine("Current wind speed is " + openWeatherReport.wind.speed + " mph.");
+            Console.WriteLine("Current temperature is " + ((((openWeatherReport.main.temp) - 273.15) * 1.8) + 32).ToString("F1") + " F."); //Converts from Kelvin to Fahrenheit. 
+            Console.WriteLine("Current wind speed is " + openWeatherReport.wind.speed.ToString("F1") + " mph.");
          }
          //If we did not, report.
          else
@@ -49,7 +54,7 @@ namespace Program_2_REST
             }
             else
             {
-               Console.Write("OpenWeatherMap returned error code " + openWeatherReport.statusCode + '.');
+               Console.WriteLine("OpenWeatherMap returned error code " + openWeatherReport.statusCode + '.');
             } 
          }
 
@@ -57,18 +62,18 @@ namespace Program_2_REST
          if(uvReport.statusCode == 200)
          {
             //Report the uvReport component of the output.
-            Console.WriteLine("UV index is " + uvReport.result.uv + " with a max of " + uvReport.result.uv_max + " today.");
+            Console.WriteLine("UV index is " + uvReport.result.uv.ToString("F1") + " with a max of " + uvReport.result.uv_max.ToString("F1") + " today.");
 
             //Using https://www.epa.gov/sunsafety/uv-index-scale-0 for what the index means.
-            if (uvReport.result.uv < 3)
+            if (uvReport.result.uv_max < 3)
             {
                Console.WriteLine("You don't need any protective gear for UV, have a nice day!");
             }
-            else if(uvReport.result.uv < 8)
+            else if(uvReport.result.uv_max < 8)
             {
                Console.WriteLine("You should wear sunblock and a hat.");
             }
-            else if(uvReport.result.uv >= 8)
+            else if(uvReport.result.uv_max >= 8)
             {
                Console.WriteLine("You should wear a sunblock and hat as well as stay in shade.");
             }
@@ -82,7 +87,7 @@ namespace Program_2_REST
             }
             else
             {
-               Console.Write("OpenUV returned error code " + uvReport.statusCode + '.');
+               Console.WriteLine("OpenUV returned error code " + uvReport.statusCode + '.');
             }
          }
       }
