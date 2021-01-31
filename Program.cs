@@ -11,6 +11,8 @@ namespace Program_2_REST
       {
          //Local variables
          string city = null;
+         JsonResponse openWeatherReport = new JsonResponse();
+         JsonResponse uvReport = new JsonResponse();
 
          //Get city from user.
          if (args.Length > 0)
@@ -18,25 +20,62 @@ namespace Program_2_REST
             city = args[0];
          }
 
-         JsonResponse openWeatherReport = GetFromAPI("http://api.openweathermap.org/data/2.5/", "weather?q=" + city + "&appid=db5a189c9a489caf9967a896deffc4b3", null, null);
+         openWeatherReport = GetFromAPI("http://api.openweathermap.org/data/2.5/", "weather?q=" + city + "&appid=db5a189c9a489caf9967a896deffc4b3", null, null);
          //JsonResponse newsReport = GetFromAPI("http://newsapi.org/v2/", "everything?q" + city + "&from=2020-12-30&sortBy=publishedAt&apiKey=bb92a53fa28844fca5131cd14d24d3f6", null, null);
-         JsonResponse uvReport = GetFromAPI("https://api.openuv.io/api/v1/uv", "uv?lat=" + openWeatherReport.coord.lat + "&lng=" + openWeatherReport.coord.lon, "x-access-token", "0e2f0178c8d10d971963fd75867a2772");
+         //Need an if loop here in case the above call fails, as this call depends on it succeeding.
+         if(openWeatherReport.statusCode == 200)
+         {
+            uvReport = GetFromAPI("https://api.openuv.io/api/v1/uv", "uv?lat=" + openWeatherReport.coord.lat + "&lng=" + openWeatherReport.coord.lon, "x-access-token", "0e2f0178c8d10d971963fd75867a2772");
+         }
 
-         //Report the openWeather component of the output.
-         Console.WriteLine("Information about " + city + ":");
-         Console.WriteLine("Current weather is " + openWeatherReport.weather[0].description + ".");
-         Console.WriteLine("Current temperature is " + (int)((((openWeatherReport.main.temp) - 273.15) * 1.8) + 32) + " F."); //Converts from Kelvin to Fahrenheit. 
-         Console.WriteLine("Current wind speed is " + openWeatherReport.wind.speed + " mph.");
+         //Check if we got valid response from openWeatherMap.
+         if (openWeatherReport.statusCode == 200) 
+         {
+            //Report the openWeather component of the output.
+            Console.WriteLine("Information about " + city + ":");
+            Console.WriteLine("Current weather is " + openWeatherReport.weather[0].description + ".");
+            Console.WriteLine("Current temperature is " + (int)((((openWeatherReport.main.temp) - 273.15) * 1.8) + 32) + " F."); //Converts from Kelvin to Fahrenheit. 
+            Console.WriteLine("Current wind speed is " + openWeatherReport.wind.speed + " mph.");
+         }
+         //If we did not, report.
+         else
+         {
+            Console.WriteLine("An error occured with retrieving data from the APIs.");
+            if(openWeatherReport.statusCode == 404)
+            {
+               Console.WriteLine("OpenWeatherMap returned a 404. Perhaps the city is wrong?");
+            }
+            else
+            {
+               Console.Write("OpenWeatherMap returned error code " + openWeatherReport.statusCode + '.');
+            } 
+         }
 
-         //Report the uvReport component of the output.
-         Console.WriteLine("UV index is " + uvReport.result.uv + " with a high max of " + uvReport.result.uv_max + " today.");
-         Console.WriteLine()
-
+         //Check if we got valid responses.
+         if(uvReport.statusCode == 200)
+         {
+            //Report the uvReport component of the output.
+            Console.WriteLine("UV index is " + uvReport.result.uv + " with a max of " + uvReport.result.uv_max + " today.");
+            Console.WriteLine();
+         }
+         //If we did not, report.
+         else
+         {
+            if(uvReport.statusCode == -1)
+            {
+               Console.WriteLine("OpenUV failed due to requiring data from OpenWeatherMap, which failed.");
+            }
+            else
+            {
+               Console.Write("OpenUV returned error code " + uvReport.statusCode + '.');
+            }
+         }
       }
 
       static private JsonResponse GetFromAPI(string baseURL, string extensionURL, string additionalHeadersBearer, string additionalHeaderAuth)
       {
          var client = new HttpClient();
+         JsonResponse returnObject = new JsonResponse();
 
          client.BaseAddress = new Uri(baseURL);
          if (additionalHeadersBearer != null && additionalHeaderAuth != null)
@@ -45,14 +84,25 @@ namespace Program_2_REST
          }
          HttpResponseMessage response = client.GetAsync(extensionURL).Result;
 
-         response.EnsureSuccessStatusCode();
+         //Handles when the source is not found.
+         try { response.EnsureSuccessStatusCode(); }
+         catch(Exception e)
+         {
+            if((int)response.StatusCode == 404)
+            {
+               returnObject.statusCode = (int)response.StatusCode;
+               return returnObject;
+            }
+         }
          string result = response.Content.ReadAsStringAsync().Result;
-         JsonResponse returnObject = JsonConvert.DeserializeObject<JsonResponse>(result);
+         returnObject = JsonConvert.DeserializeObject<JsonResponse>(result);
+         returnObject.statusCode = (int)response.StatusCode;
          return returnObject;
       }
 }
 public class JsonResponse
 {
+   public int statusCode = -1;
    public Result result { get; set; }
    public Coord coord { get; set; }
    public Weather[] weather { get; set; }
