@@ -106,26 +106,32 @@ namespace Program_2_REST
          HttpResponseMessage response = client.GetAsync(extensionURL).Result;
 
          try { response.EnsureSuccessStatusCode(); }
-         catch(Exception e)
+         catch (Exception e)
          {
             //Retry if we have a retry code.
-            if(retryCodes.Contains((int)response.StatusCode))
+            if (retryCodes.Contains((int)response.StatusCode))
             {
-               int retryCount = 1;
-               int waitSeconds = 1;
-               while(retryCount <= 5 && !retryCodes.Contains((int)response.StatusCode)) //Five is chosen because exponentially it ends at 55 seconds, and the target is 1 min.
+               int retryCount = 0;
+               int waitSeconds = 0;
+               while (retryCount < 5 && retryCodes.Contains((int)response.StatusCode)) //Five is chosen because exponentially it ends at 55 seconds, and the target is 1 min.
                {
                   Thread.Sleep(waitSeconds * 1000);
+                  waitSeconds = (int)Math.Pow(2, retryCount);
                   retryCount++;
-                  waitSeconds = retryCount ^ 2;
                   response = client.GetAsync(extensionURL).Result;
                }
             }
-            returnObject.statusCode = (int)response.StatusCode;
-            return returnObject;
+            else
+            {
+               returnObject.statusCode = (int)response.StatusCode;
+               return returnObject;
+            }
          }
          string result = response.Content.ReadAsStringAsync().Result;
-         returnObject = JsonConvert.DeserializeObject<JsonResponse>(result);
+         if (result.Length > 0) //This avoids setting the object to null when there is no response, breaking the program.
+         {
+            returnObject = JsonConvert.DeserializeObject<JsonResponse>(result);
+         }
          returnObject.statusCode = (int)response.StatusCode;
          return returnObject;
       }
